@@ -4,6 +4,7 @@ using System.Reflection;
 using HarmonyLib;
 using OWML.Common;
 using OWML.ModHelper;
+using UnityEngine;
 
 namespace OuterCraftDeathMessages
 {
@@ -13,19 +14,32 @@ namespace OuterCraftDeathMessages
 
         public static DeathType deathType;
 
+        public static string DeathMessage = "working";
+
+        public static bool ShowText = false;
+
+        public static int _displayHeight;
+        public static int _displayWidth;
+        public static float _xPos;
+        public static float _yPos;
+        public static float _width;
+        public static float _height;
+        public Font _hudFont;
+
         public static Dictionary<DeathType, List<string>> deathMessages = new Dictionary<DeathType, List<string>>()
         {
-            { DeathType.Impact, new List<string> { "fell from a great height", "took a nosedive", "couldn't stick the landing" } },
-            { DeathType.Asphyxiation, new List<string> { "couldn't hold their breath" } },
-            { DeathType.Energy, new List<string> { "was burned to a crisp", "played with fire", "got too hot to handle" } },
+            {DeathType.Impact, new List<string> { "fell from a great height", "took a nosedive", "couldn't stick the landing" } },
+            {DeathType.Asphyxiation, new List<string> { "couldn't hold their breath" } },
             {DeathType.Supernova, new List<string> { "was caught in a supernova", "couldn't escape the stellar explosion", "was obliterated by a dying star" } },
-            { DeathType.Digestion, new List<string> { "Was swallowed by a fish"} },
+            {DeathType.Digestion, new List<string> { "Was swallowed by a fish"} },
             {DeathType.DreamExplosion, new List<string> { "was caught in a dream explosion", "couldn't escape the blast", "was torn apart in a dream" } },
             {DeathType.BlackHole, new List<string> { "couldn't escape the singularity"} },
             {DeathType.Lava, new List<string> { "was melted by lava", "couldn't withstand the heat", "was consumed by molten rock" } },
             {DeathType.CrushedByElevator, new List<string> { "was crushed by an elevator", "couldn't avoid the falling platform", "was flattened by machinery" } },
             {DeathType.Meditation, new List<string> { "was lost in meditation", "was consumed by inner thoughts" } },
             {DeathType.Crushed, new List<string> { "was flattened by a heavy load" } },
+            {DeathType.Default, new List<string> { "met an untimely end", "couldn't survive the ordeal", "was defeated by the environment" } },
+            {DeathType.TimeLoop, new List<string> { "couldn't escape the temporal anomaly" } },
             // Add more death types and messages as needed
         };
 
@@ -40,19 +54,77 @@ namespace OuterCraftDeathMessages
         public void Start()
         {
             // Starting here, you'll have access to OWML's mod helper.
-            ModHelper.Console.WriteLine($"My mod {nameof(OuterCraftDeathMessages)} is loaded!", MessageType.Success);
+            ModHelper.Console.WriteLine($"My mod {nameof(OuterCraftDeathMessages)} is loaded! {DateTime.Now:HH:mm:ss}", MessageType.Success);
 
             new Harmony("RattmanTheStupid.OuterCraftDeathMessages").PatchAll(Assembly.GetExecutingAssembly());
 
             // Example of accessing game code.
             OnCompleteSceneLoad(OWScene.TitleScreen, OWScene.TitleScreen); // We start on title screen
             LoadManager.OnCompleteSceneLoad += OnCompleteSceneLoad;
+
+            _hudFont = Resources.Load<Font>(@"fonts/english - latin/SpaceMono-Regular_Dynamic");
+
+            GlobalMessenger<DeathType>.AddListener("PlayerDeath", DrawDeathText);
+            GlobalMessenger<GraphicSettings>.AddListener("GraphicSettingsUpdated", GetDisplaySettings);
         }
 
         public void OnCompleteSceneLoad(OWScene previousScene, OWScene newScene)
         {
             if (newScene != OWScene.SolarSystem) return;
-            ModHelper.Console.WriteLine("Loaded into solar system!", MessageType.Success);
+            ModHelper.Console.WriteLine($"Loaded into solar system! {DateTime.Now:HH:mm:ss}", MessageType.Success);
+        }
+
+        public void AddTextToScene()
+        {
+            ShowText = false;
+        }
+
+        public void OnGUI()
+        {
+           if (LoadManager.GetCurrentScene() != OWScene.SolarSystem)
+            {
+                return;
+            }
+            if (!ShowText)
+            {
+                return;
+            }
+
+            var style = new GUIStyle
+            {
+                font = _hudFont,
+                fontSize = 30,
+                wordWrap = true
+            };
+            style.normal.textColor = Color.white;
+            style.alignment = TextAnchor.MiddleCenter;
+
+            GUI.Label(new Rect(_xPos, _yPos, _width, _height), DeathMessage, style);
+        }
+
+        public void DrawDeathText(DeathType type)
+        {
+            Invoke(nameof(AddTextToScene), 3);
+        }
+
+        public override void Configure(IModConfig config)
+        {
+            RecalculatePosition();
+        }
+
+        public void GetDisplaySettings(GraphicSettings settings)
+        {
+            _displayHeight = settings.displayResHeight;
+            _displayWidth = settings.displayResWidth;
+            RecalculatePosition();
+        }
+
+        private void RecalculatePosition()
+        {
+            _yPos = 0;
+            _height = _displayHeight;
+            _xPos =  0;
+            _width = _displayWidth;
         }
     }
 
@@ -64,9 +136,10 @@ namespace OuterCraftDeathMessages
             var messageList = OuterCraftDeathMessages.deathMessages.TryGetValue(deathType, out List<string> messages);
             if (messageList)
             {
-                var random = new Random();
+                var random = new System.Random();
                 var randomMessage = messages[random.Next(messages.Count)];
-                OuterCraftDeathMessages.Instance.ModHelper.Console.WriteLine(randomMessage);
+                OuterCraftDeathMessages.DeathMessage = randomMessage;
+                OuterCraftDeathMessages.ShowText = true;
             }
         }
     }
